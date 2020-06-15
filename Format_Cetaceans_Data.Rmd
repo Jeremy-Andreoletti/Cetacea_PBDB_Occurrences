@@ -24,15 +24,11 @@ library("dplyr")
 library("ggtree")
 ```
 
-```{r}
-setwd("~/Documents/Scolaire/ENS/Stage_M1/Cetaceans/")
-```
-
 # Load occurrence dataset
 
 ```{r}
-# cetacea_pbdb <- read.csv("data-cetaceans/cetacea_pbdb_05_Apr_2018.csv", skip = 16)
-cetacea_pbdb <- read.csv2("data-cetaceans/cetacea_pbdb_11_May_2020.csv", skip = 17)
+# cetacea_pbdb <- read.csv("../data-cetaceans/cetacea_pbdb_05_Apr_2018.csv", skip = 16)
+cetacea_pbdb <- read.csv2("../data-cetaceans/cetacea_pbdb_11_May_2020.csv", skip = 17)
 # Remove columns with only NAs
 cetacea_pbdb <- cetacea_pbdb[,colSums(is.na(cetacea_pbdb)) < nrow(cetacea_pbdb)]
 # Record classying numbers as factors
@@ -57,14 +53,14 @@ cetacea_pbdb$identified_rank <- factor(cetacea_pbdb$identified_rank, levels=c("s
 # Load the list of occurrences with morphological information
 
 ```{r}
-occurrences_with_morphology <- read.csv2("data-cetaceans/SpecimensPBDB_newNames.csv")
+occurrences_with_morphology <- read.csv2("../data-cetaceans/SpecimensPBDB_newNames.csv")
 summary(occurrences_with_morphology)
 ```
 
 Combine those taxa with extant taxa to get all the species included in the tree.
 
 ```{r}
-extant_taxa <- read.csv2("data-cetaceans/Cetacea_extant_taxa.csv")
+extant_taxa <- read.csv2("../data-cetaceans/Cetacea_extant_taxa.csv")
 summary(extant_taxa)
 ```
 
@@ -78,19 +74,19 @@ summary(extinct_taxa)
 ```{r}
 taxa <- rbind(extant_taxa, extinct_taxa)
 summary(taxa)
-write.table(taxa, file = "data-cetaceans/Cetacea_taxa.csv", quote = F, sep="\t", row.names = F)
+write.table(taxa, file = "../data-cetaceans/Cetacea_taxa.csv", quote = F, sep="\t", row.names = F)
 ```
 
 Check that the names in the datasets are exactly the same as in the list above.
 
 ```{r}
-morpho_names <- read.table("data-cetaceans/morpho_simplified_newNames_removeOutgroupsUndescribed.nex", skip=6, fill=T)
+morpho_names <- read.table("../data-cetaceans/morpho_simplified_newNames_removeOutgroupsUndescribed.nex", skip=6, fill=T)
 morpho_names <- droplevels(morpho_names$V1[sapply(morpho_names$V1, grepl, pattern="_")])
 
-mit_names <- read.table("data-cetaceans/M4376_mt_simplified_newNames_removeOutgroups.nex", skip=6, fill=T)
+mit_names <- read.table("../data-cetaceans/M4376_mt_simplified_newNames_removeOutgroups.nex", skip=6, fill=T)
 mit_names <- droplevels(mit_names$V1[sapply(mit_names$V1, grepl, pattern="_")])
 
-nuc_names <- read.table("data-cetaceans/M4358_nuclear_simplified_newNames_removeOutgroups.nex", skip=6, fill=T)
+nuc_names <- read.table("../data-cetaceans/M4358_nuclear_simplified_newNames_removeOutgroups.nex", skip=6, fill=T)
 nuc_names <- droplevels(nuc_names$V1[sapply(nuc_names$V1, grepl, pattern="_")])
 
 setequal(taxa$taxon, union(union(morpho_names, mit_names), nuc_names))
@@ -100,7 +96,7 @@ Idem at the generic level for the genus analysis.
 
 ```{r}
 occurrences_with_morphology_genera <- occurrences_with_morphology[-which(occurrences_with_morphology$Taxon %in% c("Atocetus_nasalis", "Brachydelphis_jahuayensis", "Haborophocoena_minutus", "Lophocetus_repenningi", "Odobenocetops_peruvianus", "Otekaikea_huata", "Parapontoporia_wilsoni")),]
-extant_genera <- read.csv2("data-cetaceans/Cetacea_extant_genera.csv")
+extant_genera <- read.csv2("../data-cetaceans/Cetacea_extant_genera.csv")
 summary(extant_genera)
 
 extinct_genera <- cetacea_pbdb[cetacea_pbdb$occurrence_no %in% occurrences_with_morphology_genera$pbdb_occurence.number, c("accepted_name", "min_ma", "max_ma")]
@@ -110,19 +106,19 @@ summary(extinct_genera)
 
 genera <- rbind(extant_genera, extinct_genera)
 summary(genera)
-write.table(genera, file = "data-cetaceans/Cetacea_genera.csv", quote = F, sep="\t", row.names = F)
+write.table(genera, file = "../data-cetaceans/Cetacea_genera.csv", quote = F, sep="\t", row.names = F)
 ```
 
 Check that the names in the datasets are exactly the same as in the list above.
 
 ```{r}
-morpho_names_genera <- read.table("data-cetaceans/morpho_simplified_newNames_genera_removeOutgroupsUndescribed.nex", skip=6, fill=T)
+morpho_names_genera <- read.table("../data-cetaceans/morpho_simplified_newNames_genera_removeOutgroupsUndescribed.nex", skip=6, fill=T)
 morpho_names_genera <- droplevels(morpho_names_genera$V1[sapply(morpho_names_genera$V1, grepl, pattern="_")])
 
-mit_names_genera <- read.table("data-cetaceans/M4376_mt_simplified_newNames_genera_removeOutgroups.nex", skip=6, fill=T)
+mit_names_genera <- read.table("../data-cetaceans/M4376_mt_simplified_newNames_genera_removeOutgroups.nex", skip=6, fill=T)
 mit_names_genera <- droplevels(mit_names_genera$V1[sapply(mit_names_genera$V1, grepl, pattern="_")])
 
-nuc_names_genera <- read.table("data-cetaceans/M4358_nuclear_simplified_newNames_genera_removeOutgroups.nex", skip=6, fill=T)
+nuc_names_genera <- read.table("../data-cetaceans/M4358_nuclear_simplified_newNames_genera_removeOutgroups.nex", skip=6, fill=T)
 nuc_names_genera <- droplevels(nuc_names_genera$V1[sapply(nuc_names_genera$V1, grepl, pattern="_")])
 
 setequal(genera$taxon, union(union(morpho_names_genera, mit_names_genera), nuc_names_genera))
@@ -223,9 +219,9 @@ ggplot(cetacea_pbdb_subsampled, aes(x=-age_runif)) +
 $\to$ The distribution looks similar, with some noise due to higher variance with smaller sample.
 
 ```{r}
-write(cetacea_pbdb$age_mean, file = "data-cetaceans/Cetacea_occurrences_mean_age.csv", sep="; ", ncolumns = dim(cetacea_pbdb)[1])
-write(cetacea_pbdb$age_runif, file = "data-cetaceans/Cetacea_age_runif_age.csv", sep="; ", ncolumns = dim(cetacea_pbdb)[1])
-write(cetacea_pbdb_subsampled$age_runif, file = "data-cetaceans/Cetacea_age_runif_age_subsampled.csv", sep="; ", ncolumns = dim(cetacea_pbdb_subsampled)[1])
+write(cetacea_pbdb$age_mean, file = "../data-cetaceans/Cetacea_occurrences_mean_age.csv", sep="; ", ncolumns = dim(cetacea_pbdb)[1])
+write(cetacea_pbdb$age_runif, file = "../data-cetaceans/Cetacea_age_runif_age.csv", sep="; ", ncolumns = dim(cetacea_pbdb)[1])
+write(cetacea_pbdb_subsampled$age_runif, file = "../data-cetaceans/Cetacea_age_runif_age_subsampled.csv", sep="; ", ncolumns = dim(cetacea_pbdb_subsampled)[1])
 ```
 
 ## Repartition among accepted ranks
@@ -1375,7 +1371,7 @@ p_before <- ggplot(Cetacea_occ[Cetacea_occ$accepted_rank =="species" & Cetacea_o
   ggtitle(paste("Distributions of species fossil age ranges, before correcting sampling (n = ", dim(Cetacea_occ[Cetacea_occ$accepted_rank =="species" & Cetacea_occ$age_range<10,])[1], ")", sep=""))
 p_before
 
-ggsave("Images/Range_distributions_before_aggregating.svg", plot = p_before, device = "svg", bg = "transparent")
+ggsave("../Images/Range_distributions_before_aggregating.svg", plot = p_before, device = "svg", bg = "transparent")
 
 p_after <- ggplot(Cetacea_occ_aggreg[Cetacea_occ_aggreg$accepted_rank =="species" & Cetacea_occ_aggreg$age_range<10,], aes(x=-max_ma, y=accepted_name)) +
   geom_segment(aes(x = -max_max_ma, y = reorder(accepted_name, -age_combined_mean), xend = -min_min_ma, yend=reorder(accepted_name, -age_combined_mean), color=occurrence_combined_density), arrow=arrow(ends = "both", angle=90, length = unit(1, "mm")), alpha=0.5) +
@@ -1393,7 +1389,7 @@ p_after <- ggplot(Cetacea_occ_aggreg[Cetacea_occ_aggreg$accepted_rank =="species
   ggtitle(paste("Distributions of species fossil age ranges, after correcting sampling (n = ", dim(Cetacea_occ_sampled)[1], ")", sep=""))
 p_after
 
-ggsave("Images/Range_distributions_after_aggregating.svg", plot = p_after, device = "svg", bg = "transparent")
+ggsave("../Images/Range_distributions_after_aggregating.svg", plot = p_after, device = "svg", bg = "transparent")
 ```
 
 ```{r fig.height=6, message=FALSE}
@@ -1424,7 +1420,7 @@ p1 + annotation_custom(ggplotGrob(p3)) + ggtitle("Initial occurrences distributi
 p_all <- p1 + annotation_custom(ggplotGrob(p2)) + annotation_custom(ggplotGrob(p3)) + ggtitle("Initial occurrences distribution (red) and comparison after sub-sampling (blue) or aggregating in formations (green)") + theme(plot.background = element_rect(fill = "transparent", color = NA))
 p_all
 
-ggsave("Images/Occurrence_distributions_comparison.svg", plot = p_all, device = "svg", bg = "transparent")
+ggsave("../Images/Occurrence_distributions_comparison.svg", plot = p_all, device = "svg", bg = "transparent")
 ```
 
 $\to$ Comparing with the initial occurrences distribution and with the distribution after our first sub-sampling it appears that both methods lead to very similar distributions. This conforts us about the robustness of those approaches.
@@ -1596,7 +1592,7 @@ $\to$ The family repartitions vary a bit after subsampling, but because of the l
 Let's look rather at a higher taxonomic rank, by importing the topology of cetacean families (from Marx et al. 2016) :
 
 ```{r fig.width=10}
-families_tree <- ape::read.tree("bjoelle-stratigraphic_age_uncertainty_SI-9bbcef2/cetaceans_data/fossils/families.tre")
+families_tree <- ape::read.tree("../bjoelle-stratigraphic_age_uncertainty_SI-9bbcef2/cetaceans_data/fossils/families.tre")
 ggtree(families_tree) +
   geom_tiplab() +
   geom_nodelab() + 
@@ -1648,14 +1644,14 @@ $\to$ There is a smaller proportion of archeocete occurrences after either sampl
 
 ```{r}
 # write(Cetacea_occ_aggreg[Cetacea_occ_aggreg$accepted_rank =="species",]$age_runif, 
-#       file = "data-cetaceans/Cetacea_age_runif_age_species_corrected.csv", 
+#       file = "../data-cetaceans/Cetacea_age_runif_age_species_corrected.csv", 
 #       sep = "; ", 
 #       ncolumns = dim(Cetacea_occ_aggreg[Cetacea_occ_aggreg$accepted_rank =="species",])[1])
 write.table(Cetacea_occ_aggreg[Cetacea_occ_aggreg$accepted_rank == "species", c("min_ma", "max_ma")],
-            file="data-cetaceans/Cetacea_occurrences_min_max_age_species_corrected.csv", sep=",", row.names=FALSE, col.names=FALSE)
+            file="../data-cetaceans/Cetacea_occurrences_min_max_age_species_corrected.csv", sep=",", row.names=FALSE, col.names=FALSE)
 
 write.table(Cetacea_occ_aggreg[Cetacea_occ_aggreg$accepted_rank %in% c("species", "genus"), c("min_ma", "max_ma")],
-            file="data-cetaceans/Cetacea_occurrences_min_max_age_species_genera_corrected.csv", sep=",", row.names=FALSE, col.names=FALSE)
+            file="../data-cetaceans/Cetacea_occurrences_min_max_age_species_genera_corrected.csv", sep=",", row.names=FALSE, col.names=FALSE)
 ```
 
 ```{r}
@@ -1818,7 +1814,7 @@ $\to$ Delimiting by geological plates (+ age) instead of countries (+ age) leads
 
 ```{r}
 write.table(Cetacea_occ_aggreg_gen[Cetacea_occ_aggreg_gen$accepted_rank %in% c("species", "genus"), c("min_ma", "max_ma")],
-            file="data-cetaceans/Cetacea_occurrences_min_max_age_genera_corrected.csv", sep=",", row.names=FALSE, col.names=FALSE)
+            file="../data-cetaceans/Cetacea_occurrences_min_max_age_genera_corrected.csv", sep=",", row.names=FALSE, col.names=FALSE)
 ```
 
 # Conclusions
