@@ -141,12 +141,29 @@ cetacea_pbdb <- cetacea_pbdb[!(cetacea_pbdb$occurrence_no %in% occurrences_with_
 ## Repartition through time
 ### Full fossil record
 
-First, use the stratigraphic range's midpoint as the occurrence fixed age.
+Each occurrence is associated with a **stratigraphic age uncertainty interval** (minimum and maximum ages).
 
-```{r, fig.asp=0.3, fig.width=8}
-# Compute the mean age in the time interval
+```{r }
+# Get the stratigraphic age uncertainty interval
+cetacea_pbdb$age_uncertainty_interval <- mapply(function(min_age, max_age){paste("[",-max_age,", ",-min_age,"]", sep = "")}, cetacea_pbdb$min_ma, cetacea_pbdb$max_ma)
+
+# Compute the mean age in the interval
 cetacea_pbdb$age_mean <- (cetacea_pbdb$min_ma+cetacea_pbdb$max_ma)/2
 
+ggplot(cetacea_pbdb, aes(x=-max_ma, y=age_uncertainty_interval)) +
+  geom_segment(aes(x = -max_ma, y = reorder(age_uncertainty_interval, -age_mean), xend = -min_ma, yend=reorder(age_uncertainty_interval, -age_mean), color=-age_mean)) +
+  scale_x_continuous(name = "Time (My)") +
+  scale_y_discrete(name = "Occurrences") +
+  labs(colour="Mean age") +
+  ggtitle("Distribution of age intervals") +
+  theme(axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(),
+        panel.grid.major.y = element_blank())
+```
+
+First, one can use the stratigraphic age uncertainty interval midpoint as the occurrence fixed age.
+
+```{r, fig.asp=0.3, fig.width=8}
 ggplot(cetacea_pbdb, aes(x=-age_mean, y=rnorm(length(age_mean), 1, 0.05))) +
   geom_point(cex=0.1, alpha=0.5) +
   scale_x_continuous(name = "Time (My)") +
@@ -168,10 +185,10 @@ ggplot(cetacea_pbdb, aes(x=-age_mean)) +
   ggtitle(paste("Evolution of the number occurrences through time ( total of", dim(cetacea_pbdb)[1], ") - Midpoint"))
 ```
 
-$\to$ Numerous occurrences seem to have the same age interval so in order to avoid clusters let's draw them uniformly in their stratigraphic range rather than taking the midpoint.
+$\to$ Numerous occurrences seem to have the same stratigraphic age uncertainty so in order to avoid clusters let's draw them uniformly in their interval rather than taking the midpoint.
 
 ```{r, fig.asp=0.3, fig.width=8}
-# Draw occurrence age uniformally in the time interval
+# Draw occurrence age uniformally in the uncertainty interval
 cetacea_pbdb$age_runif <- mapply(function(m, M){runif(n=1, min=m, max=M)}, cetacea_pbdb$min_ma, cetacea_pbdb$max_ma)
 
 ggplot(cetacea_pbdb, aes(x=-age_runif, y=rnorm(length(age_runif), 1, 0.05))) +
@@ -195,11 +212,11 @@ ggplot(cetacea_pbdb, aes(x=-age_runif)) +
   ggtitle(paste("Evolution of the number occurrences through time ( total of", dim(cetacea_pbdb)[1], ") - Uniform draw"))
 ```
 
-$\to$ The repartition seems much smoother now.
+$\to$ The distribution seems much smoother now.
 
-### Subsampling
+### Uniform subsampling
 
-These occurrences are too numerous for a faster preliminary analysis, let's randomly subsample a fraction of them.
+These occurrences are too numerous to perform a quick preliminary analysis, so let's randomly subsample a fraction of them.
 
 ```{r, fig.asp=0.3, fig.width=8}
 cetacea_pbdb_subsampled <- sample_n(cetacea_pbdb, size=round(length(age_runif)*0.10))
@@ -234,9 +251,12 @@ write(cetacea_pbdb_subsampled$age_runif, file = "../data-cetaceans/Cetacea_age_r
 ```
 
 ## Repartition among accepted ranks
+
+Occurrences are associated with an **accepted rank**, depending on the level of detail of their description and attribution to a given taxonomic position.
+
 ### Pie chart
 
-```{r, fig.width=6}
+```{r, fig.width=5}
 ggplot(cetacea_pbdb, aes(x=factor(record_type), fill=accepted_rank)) +
   geom_bar(width = 1, stat = "count") +
   coord_polar("y") + 
@@ -244,9 +264,9 @@ ggplot(cetacea_pbdb, aes(x=factor(record_type), fill=accepted_rank)) +
   labs(x = NULL, y = NULL, fill = NULL, title = "Repartition of occurrences among accepted ranks")
 ```
 
-$\to$ Half of the occurrences are identified at the level of the secies and 1/3 at the genus or family.
+$\to$ Half of the occurrences are identified at the level of the species and 1/3 at the genus or family.
 
-Some clades are unranked :
+Some clades are unranked:
 
 ```{r}
 table(as.character(cetacea_pbdb[cetacea_pbdb$accepted_rank=="unranked clade",]$accepted_name))
@@ -265,9 +285,11 @@ ggplot(cetacea_pbdb[cetacea_pbdb$accepted_rank %in% c("species", "genus"),], aes
   facet_grid(accepted_rank ~ ., scales="free")
 ```
 
-$\to$ Apparent huge cluster of occurrences in recent times, with very precise dating = Artefact due to the "Pull of the Recent" effect ? 
+$\to$ An apparent huge cluster of occurrences appears in recent times, with very precise dating = Artifact due to the "Pull of the Recent" effect ? Bones collected by ancient hominids ?
 
-$\implies$ We decided to **remove all Late Pleistocene and Holocene occurrences** (thus setting the $\omega$-sampling to 0) in order to avoid this bias.
+$\implies$ These occurrences seem to obey to a completely different process and over a very short period of time, so we decided to **remove all Late Pleistocene and Holocene occurrences** in order to avoid this bias.
+
+### BIAS CORRECTION N°1: Remove all Late Pleistocene and Holocene occurrences
 
 ```{r}
 Cetacea_occ <- cetacea_pbdb[cetacea_pbdb$age_runif > 0.126,]
@@ -289,7 +311,7 @@ ggplot(Cetacea_occ[!Cetacea_occ$accepted_rank %in% c("subspecies", "infraorder")
   facet_grid(accepted_rank ~ ., scales="free")
 ```
 
-$\to$ We observe similar trends at each rank, with peaks at ~15My and ~5My.
+$\to$ The distributions are much more homogeneous after the correction. Similar trends can be observed at each rank, with peaks at ~15My and ~5My.
 
 ### Redundancy of occurrences with the same accepted name
 
@@ -307,31 +329,22 @@ ggplot(cetacea_pbdb, aes(x=reorder(accepted_name, table(accepted_name)[accepted_
   facet_grid(. ~ accepted_rank, scales="free_x")
 ```
 
-$\to$ ~Half of species/genera/subfamilies have only one specimen by accepted name, but it could go up to ~50 within the same species and ~200 occurrences within the same suborder. **In our model all species are upposed to have the same abundance (identical sampling rates among branches), so those huge differences will have to be mitigated.** See later for a quantification of this discrepancy.
+$\to$ ~Half of species/genera/subfamilies have only one specimen by accepted name, but it could go up to ~50 within the same species and ~200 occurrences within the same suborder. **In our model all species are upposed to have the same abundance (identical sampling rates among branches), so those huge differences will have to be mitigated.** See later for a quantification of this discrepancy and a comparison with our model's assumptions
 
 $\implies$ Our goal now will be to correct this abundance bias.
 
-## Time intervals = stratigraphic age uncertainty (minimum and maximum ages)
+# Mitigate the abundance bias
 
-```{r }
-# Get the stratigraphic interval of time uncertainty
-Cetacea_occ$age_interval <- mapply(function(min_age, max_age){paste("[",-max_age,", ",-min_age,"]", sep = "")}, Cetacea_occ$min_ma, Cetacea_occ$max_ma)
+To quantify more precisely this bias, we will:
 
-ggplot(Cetacea_occ, aes(x=-max_ma, y=age_interval)) +
-  geom_segment(aes(x = -max_ma, y = reorder(age_interval, -age_mean), xend = -min_ma, yend=reorder(age_interval, -age_mean), color=-age_mean)) +
-  scale_x_continuous(name = "Time (My)") +
-  scale_y_discrete(name = "Age intervals") +
-  labs(colour="Mean age") +
-  ggtitle("Distribution of age intervals") +
-  theme(axis.text.y=element_blank(),
-        axis.ticks.y=element_blank(),
-        panel.grid.major.y = element_blank())
-```
+  1. Count the **number of occurrences** for each taxon
+  2. Obtain the **stratigraphic range** of each taxa - ie. the time interval in which a taxon is observed - by combining the stratigraphic age uncertainties of its occurrences
+  3. Compute the **density of occurrences** = nb of occurrences / stratigraphic range, expressed in "number of occurrences by million years"
 
-## Time ranges = duration of the time intervals (maximum age - minimum age)
+## Compute the occurrence density
 ### Count occurrences by accepted name
 
-Count the number of occurrences with the same accepted name
+Count the number of occurrences with the same accepted name and plot their distribution.
 
 ```{r fig.asp=0.5, fig.width=10}
 # Count the number of occurrences with the same accepted name
@@ -347,7 +360,7 @@ my_breaks <- c(1,3,10,35,100,max(Cetacea_occ$accepted_name_count))
 #   labs(colour="Accepted names count") +
 #   theme(panel.grid.major.y = element_blank()) +
 #   scale_color_gradientn(colours = c("darkblue", "forestgreen", "black"), trans="log", breaks=my_breaks, labels=my_breaks) + 
-#   ggtitle("Distributions of fossil age ranges, by accepted rank") +
+#   ggtitle("Distributions of fossil age uncertainties, by accepted rank") +
 #   facet_grid(accepted_rank ~ ., scales = "free")
 
 ggplot(Cetacea_occ[Cetacea_occ$accepted_rank =="species",], aes(x=-max_ma, y=accepted_name)) +
@@ -359,7 +372,7 @@ ggplot(Cetacea_occ[Cetacea_occ$accepted_rank =="species",], aes(x=-max_ma, y=acc
   theme(panel.grid.major.y = element_blank(),
         axis.text.y=element_text(size=2)) +
   scale_color_gradientn(colours = c("darkblue", "forestgreen", "black"), trans="log", breaks=my_breaks, labels=my_breaks) + 
-  ggtitle("Distributions of fossil age ranges for all species") +
+  ggtitle("Distributions of fossil age uncertainties for all species") +
   facet_grid(accepted_rank ~ ., scales = "free")
 
 ggplot(Cetacea_occ[Cetacea_occ$accepted_rank =="genus",], aes(x=-max_ma, y=accepted_name)) +
@@ -371,7 +384,7 @@ ggplot(Cetacea_occ[Cetacea_occ$accepted_rank =="genus",], aes(x=-max_ma, y=accep
   theme(panel.grid.major.y = element_blank(),
         axis.text.y=element_text(size=6)) +
   scale_color_gradientn(colours = c("darkblue", "forestgreen", "black"), trans="log", breaks=my_breaks, labels=my_breaks) +
-  ggtitle("Distributions of fossil age ranges for all genera") +
+  ggtitle("Distributions of fossil age uncertainties for all genera") +
   facet_grid(accepted_rank ~ ., scales = "free")
 
 # ggplot(Cetacea_occ[Cetacea_occ$accepted_rank =="family",], aes(x=-max_ma, y=accepted_name)) +
@@ -382,56 +395,56 @@ ggplot(Cetacea_occ[Cetacea_occ$accepted_rank =="genus",], aes(x=-max_ma, y=accep
 #   labs(colour="Accepted names count") +
 #   theme(panel.grid.major.y = element_blank()) +
 #   scale_color_gradientn(colours = c("darkblue", "forestgreen", "black"), trans="log", breaks=my_breaks, labels=my_breaks) + 
-#   ggtitle("Distributions of fossil age ranges (families)") +
+#   ggtitle("Distributions of fossil age uncertainties (families)") +
 #   facet_grid(accepted_rank ~ ., scales = "free")
 ```
 
-$\to$ Some occurrences have too much age uncertainty (unrelated to species longevity in extreme cases like the one spanning 60My), they risk to artificially increase species durations.
+$\to$ Some occurrences have too much age uncertainty (unrelated to taxon longevity in extreme cases like the one spanning 60My), they risk to artificially increase species duration.
 
-### Remove occurrences with highly uncertain dating (range > 10My)
+### BIAS CORRECTION N°2: Exclude occurrences with highly uncertain dating (> 10My)
 
 ```{r, fig.asp=0.4, fig.width=10}
-# Get the duration of the time intervals
-Cetacea_occ$age_range <- Cetacea_occ$max_ma-Cetacea_occ$min_ma
+# Get the duration of the uncertainty intervals
+Cetacea_occ$age_uncertainty <- Cetacea_occ$max_ma-Cetacea_occ$min_ma
 
-ggplot(Cetacea_occ, aes(x=age_range, fill=accepted_rank)) +
+ggplot(Cetacea_occ, aes(x=age_uncertainty, fill=accepted_rank)) +
   geom_histogram(binwidth = 1) +
-  scale_x_continuous(name = "Age uncertainty range (My)") +
+  scale_x_continuous(name = "Age uncertainty (My)") +
   scale_y_continuous(name = "Number of corresponding occurrences") +
   geom_segment(aes(x = 9.5, y = 0, xend = 9.5, yend=1050), color="black", linetype="dashed") +
-  ggtitle("Distribution of occurrences' age uncertainty range and removal limit (dashed line)")
+  ggtitle("Distribution of occurrences' age uncertainty and removal limit (dashed line)")
 ```
 
 Most of occurrences show less than 10 My age uncertainty, let's keep only these ones.
 
 ```{r}
 data.frame(all_ranges = dim(Cetacea_occ)[1],
-           smaller_10My = dim(Cetacea_occ[Cetacea_occ$age_range<10,])[1],
-           removed = dim(Cetacea_occ)[1]-dim(Cetacea_occ[Cetacea_occ$age_range<10,])[1], row.names = "Number of occurrences")
+           smaller_10My = dim(Cetacea_occ[Cetacea_occ$age_uncertainty<10,])[1],
+           removed = dim(Cetacea_occ)[1]-dim(Cetacea_occ[Cetacea_occ$age_uncertainty<10,])[1], row.names = "Number of occurrences")
 ```
 
 ```{r fig.height=6}
-# ggplot(Cetacea_occ, aes(x=age_runif, y=age_range)) +
+# ggplot(Cetacea_occ, aes(x=age_runif, y=age_uncertainty)) +
 #   geom_point(alpha=0.05) +
 #   scale_x_continuous(name = "Uniformly drawn age (My)") +
-#   scale_y_continuous(name = "Age uncertainty range (My)") +
-#   ggtitle("Distribution of occurrences' age uncertainty range")
+#   scale_y_continuous(name = "Age uncertainty (My)") +
+#   ggtitle("Distribution of occurrences' age uncertainty")
 
-ggplot(Cetacea_occ[Cetacea_occ$age_range != 63.412,], aes(x=age_runif, y=age_range)) +
+ggplot(Cetacea_occ[Cetacea_occ$age_uncertainty != 63.412,], aes(x=age_runif, y=age_uncertainty)) +
   geom_point(alpha=0.05) +
   scale_x_continuous(name = "Uniformly drawn age (My)") +
-  scale_y_continuous(name = "Age uncertainty range (My)") +
+  scale_y_continuous(name = "Age uncertainty (My)") +
   geom_segment(aes(x = 0, y = 10, xend=60, yend = 10), color="black", linetype="dashed") +
-  ggtitle("Distribution of occurrences' age uncertainty range and removal limit (dashed line)")
+  ggtitle("Distribution of occurrences' age uncertainty and removal limit (dashed line)")
 
-# ggplot(Cetacea_occ[Cetacea_occ$age_range<10,], aes(x=age_runif, y=age_range)) +
+# ggplot(Cetacea_occ[Cetacea_occ$age_uncertainty<10,], aes(x=age_runif, y=age_uncertainty)) +
 #   geom_point(alpha=0.05) +
 #   scale_x_continuous(name = "Uniformly drawn age (My)") +
-#   scale_y_continuous(name = "Age uncertainty range (My)") +
-#   ggtitle("Distribution of occurrences' age uncertainty range")
+#   scale_y_continuous(name = "Age uncertainty (My)") +
+#   ggtitle("Distribution of occurrences' age uncertainty")
 
 hist(-Cetacea_occ$age_runif, breaks = 50, col="red", probability=T, main="Distribution of occurrences, with (red) of without (blue) recent samples", xlab = "Time (My)", ylab = "Proportion of occurrences")
-hist(-Cetacea_occ[Cetacea_occ$age_range<10,]$age_runif, breaks = 50, col="blue", probability=T, density=T, add=T)
+hist(-Cetacea_occ[Cetacea_occ$age_uncertainty<10,]$age_runif, breaks = 50, col="blue", probability=T, density=T, add=T)
 ```
 
 $\to$ The removal of highly uncertain occurrences seems to be only a little biased, even if uncertainty globally increases with age.
@@ -439,7 +452,7 @@ $\to$ The removal of highly uncertain occurrences seems to be only a little bias
 ```{r, fig.asp=0.5, fig.width=10}
 my_breaks <- c(1,3,10,35,100,max(Cetacea_occ$accepted_name_count))
 
-# ggplot(Cetacea_occ[!(Cetacea_occ$accepted_rank %in% c("species", "genus", "family")) & Cetacea_occ$age_range<10,], aes(x=-max_ma, y=accepted_name)) +
+# ggplot(Cetacea_occ[!(Cetacea_occ$accepted_rank %in% c("species", "genus", "family")) & Cetacea_occ$age_uncertainty<10,], aes(x=-max_ma, y=accepted_name)) +
 #   geom_segment(aes(x = -max_ma, y = reorder(accepted_name, -age_mean), xend = -min_ma, yend=reorder(accepted_name, -age_mean), color=accepted_name_count), arrow=arrow(ends = "both", angle=90, length = unit(1, "mm")), alpha=0.5) +
 #   geom_point(aes(x=-age_runif), col="red", cex=1, alpha=0.5) +
 #   scale_x_continuous(name = "Time (My)") +
@@ -447,22 +460,22 @@ my_breaks <- c(1,3,10,35,100,max(Cetacea_occ$accepted_name_count))
 #   labs(colour="Accepted names count") +
 #   theme(panel.grid.major.y = element_blank()) +
 #   scale_color_gradientn(colours = c("darkblue", "forestgreen", "black"), trans="log", breaks=my_breaks, labels=my_breaks) + 
-#   ggtitle("Distributions of fossil age ranges, by accepted rank") +
+#   ggtitle("Distributions of fossil age uncertainties, by accepted rank") +
 #   facet_grid(accepted_rank ~ ., scales = "free")
 
-ggplot(Cetacea_occ[Cetacea_occ$accepted_rank =="species" & Cetacea_occ$age_range<10,], aes(x=-max_ma, y=accepted_name)) +
+ggplot(Cetacea_occ[Cetacea_occ$accepted_rank =="species" & Cetacea_occ$age_uncertainty<10,], aes(x=-max_ma, y=accepted_name)) +
   geom_segment(aes(x = -max_ma, y = reorder(accepted_name, -age_mean), xend = -min_ma, yend=reorder(accepted_name, -age_mean), color=accepted_name_count), arrow=arrow(ends = "both", angle=90, length = unit(1, "mm")), alpha=0.5) +
   geom_point(aes(x=-age_runif), col="red", cex=1, alpha=0.5) +
   scale_x_continuous(name = "Time (My)") +
-  scale_y_discrete(name = "Age ranges") +
+  scale_y_discrete(name = "Age uncertainties") +
   labs(colour="Accepted names count") +
   theme(panel.grid.major.y = element_blank(),
         axis.text.y=element_text(size=2)) +
   scale_color_gradientn(colours = c("darkblue", "forestgreen", "black"), trans="log", breaks=my_breaks, labels=my_breaks) + 
-  ggtitle("Distributions of fossil age ranges (species)") +
+  ggtitle("Distributions of fossil age uncertainties (species)") +
   facet_grid(accepted_rank ~ ., scales = "free")
 
-ggplot(Cetacea_occ[Cetacea_occ$accepted_rank =="genus" & Cetacea_occ$age_range<10,], aes(x=-max_ma, y=accepted_name)) +
+ggplot(Cetacea_occ[Cetacea_occ$accepted_rank =="genus" & Cetacea_occ$age_uncertainty<10,], aes(x=-max_ma, y=accepted_name)) +
   geom_segment(aes(x = -max_ma, y = reorder(accepted_name, -age_mean), xend = -min_ma, yend=reorder(accepted_name, -age_mean), color=accepted_name_count), arrow=arrow(ends = "both", angle=90, length = unit(1, "mm")), alpha=0.5) +
   geom_point(aes(x=-age_runif), col="red", cex=1, alpha=0.5) +
   scale_x_continuous(name = "Time (My)") +
@@ -471,10 +484,10 @@ ggplot(Cetacea_occ[Cetacea_occ$accepted_rank =="genus" & Cetacea_occ$age_range<1
   theme(panel.grid.major.y = element_blank(),
         axis.text.y=element_text(size=6)) +
   scale_color_gradientn(colours = c("darkblue", "forestgreen", "black"), trans="log", breaks=my_breaks, labels=my_breaks) + 
-  ggtitle("Distributions of fossil age ranges (genera)") +
+  ggtitle("Distributions of fossil age uncertainties (genera)") +
   facet_grid(accepted_rank ~ ., scales = "free")
 
-# ggplot(Cetacea_occ[Cetacea_occ$accepted_rank =="family" & Cetacea_occ$age_range<10,], aes(x=-max_ma, y=accepted_name)) +
+# ggplot(Cetacea_occ[Cetacea_occ$accepted_rank =="family" & Cetacea_occ$age_uncertainty<10,], aes(x=-max_ma, y=accepted_name)) +
 #   geom_segment(aes(x = -max_ma, y = reorder(accepted_name, -age_mean), xend = -min_ma, yend=reorder(accepted_name, -age_mean), color=accepted_name_count), arrow=arrow(ends = "both", angle=90, length = unit(1, "mm")), alpha=0.5) +
 #   geom_point(aes(x=-age_runif), col="red", cex=1, alpha=0.5) +
 #   scale_x_continuous(name = "Time (My)") +
@@ -482,51 +495,51 @@ ggplot(Cetacea_occ[Cetacea_occ$accepted_rank =="genus" & Cetacea_occ$age_range<1
 #   labs(colour="Accepted names count") +
 #   theme(panel.grid.major.y = element_blank()) +
 #   scale_color_gradientn(colours = c("darkblue", "forestgreen", "black"), trans="log", breaks=my_breaks, labels=my_breaks) + 
-#   ggtitle("Distributions of fossil age ranges (families)") +
+#   ggtitle("Distributions of fossil age uncertainties (families)") +
 #   facet_grid(accepted_rank ~ ., scales = "free")
 ```
 
-$\to$ Some species (or other ranks) have several occurrences with several time ranges, **let's combine them into a unique range covering all the others**.
+$\to$ Some taxa have several occurrences with distinct age uncertainty intervals, **let's combine them into a unique stratigraphic range**.
 
-## Combined time ranges = unique time range for occurrences with the same name (without the biggest ones)
+### Stratigraphic ranges = unique time interval combining age uncertainties of occurrences of the same taxon (excluding the most uncertain ones)
 
 ```{r, fig.asp=0.5, fig.width=10, warning=FALSE}
 # Get the minimun of the minimal ages for each accepted name
-Cetacea_occ$min_min_ma <- apply(Cetacea_occ, 1, function(X){min(Cetacea_occ[Cetacea_occ$accepted_name==X["accepted_name"] & Cetacea_occ$age_range<10,]$min_ma)})
+Cetacea_occ$min_min_ma <- apply(Cetacea_occ, 1, function(X){min(Cetacea_occ[Cetacea_occ$accepted_name==X["accepted_name"] & Cetacea_occ$age_uncertainty<10,]$min_ma)})
 # Get the maximum of the maximal ages for each accepted name
-Cetacea_occ$max_max_ma <- apply(Cetacea_occ, 1, function(X){max(Cetacea_occ[Cetacea_occ$accepted_name==X["accepted_name"] & Cetacea_occ$age_range<10,]$max_ma)})
-# Get the combined time interval
-Cetacea_occ$age_combined_interval <- mapply(function(min_min_age, max_max_age){paste("[",-max_max_age,", ",-min_min_age,"]", sep = "")}, Cetacea_occ$min_min_ma, Cetacea_occ$max_max_ma)
-# Get the combined time interval mean
-Cetacea_occ$age_combined_mean <- (Cetacea_occ$min_min_ma + Cetacea_occ$max_max_ma)/2
+Cetacea_occ$max_max_ma <- apply(Cetacea_occ, 1, function(X){max(Cetacea_occ[Cetacea_occ$accepted_name==X["accepted_name"] & Cetacea_occ$age_uncertainty<10,]$max_ma)})
+# Get the stratigraphic range
+Cetacea_occ$stratigraphic_range <- mapply(function(min_min_age, max_max_age){paste("[",-max_max_age,", ",-min_min_age,"]", sep = "")}, Cetacea_occ$min_min_ma, Cetacea_occ$max_max_ma)
+# Get the stratigraphic range midpoint
+Cetacea_occ$stratigraphic_range_midpoint <- (Cetacea_occ$min_min_ma + Cetacea_occ$max_max_ma)/2
 # Get the duration of the combined time intervals
-Cetacea_occ$age_combined_range <- Cetacea_occ$max_max_ma-Cetacea_occ$min_min_ma
+Cetacea_occ$stratigraphic_range_duration <- Cetacea_occ$max_max_ma-Cetacea_occ$min_min_ma
 
-# ggplot(Cetacea_occ[!(Cetacea_occ$accepted_rank %in% c("species", "genus", "family")) & Cetacea_occ$age_range<10,], aes(x=-max_ma, y=accepted_name)) +
-#   geom_segment(aes(x = -max_max_ma, y = reorder(accepted_name, -age_combined_mean), xend = -min_min_ma, yend=reorder(accepted_name, -age_combined_mean), color=accepted_name_count), arrow=arrow(ends = "both", angle=90, length = unit(1, "mm")), alpha=0.5) +
+# ggplot(Cetacea_occ[!(Cetacea_occ$accepted_rank %in% c("species", "genus", "family")) & Cetacea_occ$age_uncertainty<10,], aes(x=-max_ma, y=accepted_name)) +
+#   geom_segment(aes(x = -max_max_ma, y = reorder(accepted_name, -stratigraphic_range_midpoint), xend = -min_min_ma, yend=reorder(accepted_name, -stratigraphic_range_midpoint), color=accepted_name_count), arrow=arrow(ends = "both", angle=90, length = unit(1, "mm")), alpha=0.5) +
 #   geom_point(aes(x=-age_runif), col="red", cex=1, alpha=0.5) +
 #   scale_x_continuous(name = "Time (My)") +
 #   scale_y_discrete(name = "Accepted ranks") +
 #   labs(colour="Accepted names count") +
 #   theme(panel.grid.major.y = element_blank()) +
 #   scale_color_gradientn(colours = c("darkblue", "forestgreen", "black"), trans="log", breaks=my_breaks, labels=my_breaks) + 
-#   ggtitle("Distributions of fossil combined age ranges, by accepted rank") +
+#   ggtitle("Distributions of fossil combined age uncertainties, by accepted rank") +
 #   facet_grid(accepted_rank ~ ., scales = "free")
 
-ggplot(Cetacea_occ[Cetacea_occ$accepted_rank =="species" & Cetacea_occ$age_range<10,], aes(x=-max_ma, y=accepted_name)) +
-  geom_segment(aes(x = -max_max_ma, y = reorder(accepted_name, -age_combined_mean), xend = -min_min_ma, yend=reorder(accepted_name, -age_combined_mean), color=accepted_name_count), arrow=arrow(ends = "both", angle=90, length = unit(1, "mm")), alpha=0.5) +
+ggplot(Cetacea_occ[Cetacea_occ$accepted_rank =="species" & Cetacea_occ$age_uncertainty<10,], aes(x=-max_ma, y=accepted_name)) +
+  geom_segment(aes(x = -max_max_ma, y = reorder(accepted_name, -stratigraphic_range_midpoint), xend = -min_min_ma, yend=reorder(accepted_name, -stratigraphic_range_midpoint), color=accepted_name_count), arrow=arrow(ends = "both", angle=90, length = unit(1, "mm")), alpha=0.5) +
   geom_point(aes(x=-age_runif), col="red", cex=1, alpha=0.5) +
   scale_x_continuous(name = "Time (My)") +
-  scale_y_discrete(name = "Age ranges") +
+  scale_y_discrete(name = "Age uncertainties") +
   labs(colour="Accepted names count") +
   theme(panel.grid.major.y = element_blank(),
         axis.text.y=element_text(size=2)) +
   scale_color_gradientn(colours = c("darkblue", "forestgreen", "black"), trans="log", breaks=my_breaks, labels=my_breaks) + 
-  ggtitle("Distributions of fossil combined age ranges (species)") +
+  ggtitle("Distributions of fossil combined age uncertainties (species)") +
   facet_grid(accepted_rank ~ ., scales = "free")
 
-ggplot(Cetacea_occ[Cetacea_occ$accepted_rank =="genus" & Cetacea_occ$age_range<10,], aes(x=-max_ma, y=accepted_name)) +
-  geom_segment(aes(x = -max_max_ma, y = reorder(accepted_name, -age_combined_mean), xend = -min_min_ma, yend=reorder(accepted_name, -age_combined_mean), color=accepted_name_count), arrow=arrow(ends = "both", angle=90, length = unit(1, "mm")), alpha=0.5) +
+ggplot(Cetacea_occ[Cetacea_occ$accepted_rank =="genus" & Cetacea_occ$age_uncertainty<10,], aes(x=-max_ma, y=accepted_name)) +
+  geom_segment(aes(x = -max_max_ma, y = reorder(accepted_name, -stratigraphic_range_midpoint), xend = -min_min_ma, yend=reorder(accepted_name, -stratigraphic_range_midpoint), color=accepted_name_count), arrow=arrow(ends = "both", angle=90, length = unit(1, "mm")), alpha=0.5) +
   geom_point(aes(x=-age_runif), col="red", cex=1, alpha=0.5) +
   scale_x_continuous(name = "Time (My)") +
   scale_y_discrete(name = "Genera") +
@@ -534,31 +547,30 @@ ggplot(Cetacea_occ[Cetacea_occ$accepted_rank =="genus" & Cetacea_occ$age_range<1
   theme(panel.grid.major.y = element_blank(),
         axis.text.y=element_text(size=6)) +
   scale_color_gradientn(colours = c("darkblue", "forestgreen", "black"), trans="log", breaks=my_breaks, labels=my_breaks) + 
-  ggtitle("Distributions of fossil combined age ranges (genera)") +
+  ggtitle("Distributions of fossil combined age uncertainties (genera)") +
   facet_grid(accepted_rank ~ ., scales = "free")
 
-# ggplot(Cetacea_occ[Cetacea_occ$accepted_rank =="family" & Cetacea_occ$age_range<10,], aes(x=-max_ma, y=accepted_name)) +
-#   geom_segment(aes(x = -max_max_ma, y = reorder(accepted_name, -age_combined_mean), xend = -min_min_ma, yend=reorder(accepted_name, -age_combined_mean), color=accepted_name_count), arrow=arrow(ends = "both", angle=90, length = unit(1, "mm")), alpha=0.5) +
+# ggplot(Cetacea_occ[Cetacea_occ$accepted_rank =="family" & Cetacea_occ$age_uncertainty<10,], aes(x=-max_ma, y=accepted_name)) +
+#   geom_segment(aes(x = -max_max_ma, y = reorder(accepted_name, -stratigraphic_range_midpoint), xend = -min_min_ma, yend=reorder(accepted_name, -stratigraphic_range_midpoint), color=accepted_name_count), arrow=arrow(ends = "both", angle=90, length = unit(1, "mm")), alpha=0.5) +
 #   geom_point(aes(x=-age_runif), col="red", cex=1, alpha=0.5) +
 #   scale_x_continuous(name = "Time (My)") +
 #   scale_y_discrete(name = "Families") +
 #   labs(colour="Accepted names count") +
 #   theme(panel.grid.major.y = element_blank()) +
 #   scale_color_gradientn(colours = c("darkblue", "forestgreen", "black"), trans="log", breaks=my_breaks, labels=my_breaks) + 
-#   ggtitle("Distributions of fossil combined age ranges (families)") +
+#   ggtitle("Distributions of fossil combined age uncertainties (families)") +
 #   facet_grid(accepted_rank ~ ., scales = "free")
 ```
 
-## Occurrence density = number of occurrences by unit of time, in the stratigraphic interval of a taxon
 ### Density distributions
 
-Plot the density of occurrences for each taxonomic rank, and highlight the role
+Plot the density of occurrences (= number of occurrences by unit of time, in the stratigraphic interval of a taxon) for each taxonomic rank.
 
 ```{r, fig.asp=0.5, fig.width=11}
 # Get the density of occurrences in the intervals
-Cetacea_occ$occurrence_density <- Cetacea_occ$accepted_name_count/Cetacea_occ$age_range
+Cetacea_occ$occurrence_density <- Cetacea_occ$accepted_name_count/Cetacea_occ$age_uncertainty
 
-ggplot(Cetacea_occ[!(Cetacea_occ$accepted_rank %in% c("subspecies", "infraorder")) & Cetacea_occ$age_range<10,], aes(x=occurrence_density)) +
+ggplot(Cetacea_occ[!(Cetacea_occ$accepted_rank %in% c("subspecies", "infraorder")) & Cetacea_occ$age_uncertainty<10,], aes(x=occurrence_density)) +
   geom_histogram(binwidth=0.1) +
   scale_x_continuous(trans="log10", name="Density of occurrences (number/My)") +
   theme(panel.grid.major.y = element_blank()) +
@@ -568,14 +580,17 @@ ggplot(Cetacea_occ[!(Cetacea_occ$accepted_rank %in% c("subspecies", "infraorder"
 
 $\to$ Density logically increases with taxa ranks, but the distributions for species and genera dramatically spread over two orders of magnitude.
 
-## Correlation between time range and age
+### Correlation between occurrence density and age
 
 If we want to correct species abundance differences based on the density of occurrences in the age interval, those factors should not depend on time in order to avoid penalizing periods with higher densities.
 
-Let's compare the occurrence densites computed with the initial time ranges and the *combined densities* computed with the combined ranges.
+Let's compare the occurrence densities computed with the initial time ranges and the *combined densities* computed with the combined stratigraphic ranges.
 
 ```{r}
-conditions <- Cetacea_occ$accepted_rank =="species" & Cetacea_occ$age_range<10
+conditions <- Cetacea_occ$accepted_rank =="species" & Cetacea_occ$age_uncertainty<10
+
+# Get the stratigraphic age uncertainty interval
+Cetacea_occ$age_uncertainty_interval <- mapply(function(min_age, max_age){paste("[",-max_age,", ",-min_age,"]", sep = "")}, Cetacea_occ$min_ma, Cetacea_occ$max_ma)
 
 # Function to plot linear regression coefficients
 lm_eqn <- function(df){
@@ -588,11 +603,11 @@ lm_eqn <- function(df){
 }
 
 # Keep only one point by identical time interval
-age_interval_table <- table(Cetacea_occ[conditions,]$age_interval)
+age_uncertainty_interval_table <- table(Cetacea_occ[conditions,]$age_uncertainty_interval)
 
-interval_mean_age <- sapply(names(age_interval_table), function(x){Cetacea_occ[conditions & Cetacea_occ$age_interval==x,]$age_mean[1]})
+interval_mean_age <- sapply(names(age_uncertainty_interval_table), function(x){Cetacea_occ[conditions & Cetacea_occ$age_uncertainty_interval==x,]$age_mean[1]})
 
-interval_density <- sapply(names(age_interval_table), function(x){Cetacea_occ[conditions & Cetacea_occ$age_interval==x,]$occurrence_density[1]})
+interval_density <- sapply(names(age_uncertainty_interval_table), function(x){Cetacea_occ[conditions & Cetacea_occ$age_uncertainty_interval==x,]$occurrence_density[1]})
 
 df_density <- data.frame(x=interval_mean_age,
                          y=interval_density)
@@ -601,43 +616,43 @@ ggplot(df_density, aes(x=x, y=y)) +
   geom_point(alpha=0.5) +
   geom_smooth(formula = y~x, method=lm) + 
   scale_x_continuous(name = "Time (My)") +
-  scale_y_continuous(name = "Combined density") +
+  scale_y_continuous(name = "Occurrence density") +
   ggtitle("Correlation between density and age") +
   geom_text(x = 35, y = 25, label = lm_eqn(df_density), parse = TRUE)
 
-# Keep only one point by identical combined time interval
-age_combined_interval_table <- table(Cetacea_occ[conditions,]$age_combined_interval)
+# Keep only one point by identical stratigraphic range
+stratigraphic_range_table <- table(Cetacea_occ[conditions,]$stratigraphic_range)
 
-combined_interval_mean_age <- sapply(names(age_combined_interval_table), function(x){Cetacea_occ[conditions & Cetacea_occ$age_combined_interval==x,]$age_combined_mean[1]})
+stratigraphic_range_mean_age <- sapply(names(stratigraphic_range_table), function(x){Cetacea_occ[conditions & Cetacea_occ$stratigraphic_range==x,]$stratigraphic_range_midpoint[1]})
 
-Cetacea_occ$occurrence_combined_density <- Cetacea_occ$accepted_name_count/Cetacea_occ$age_combined_range
+Cetacea_occ$occurrence_combined_density <- Cetacea_occ$accepted_name_count/Cetacea_occ$stratigraphic_range_duration
 
-combined_interval_density <- sapply(names(age_combined_interval_table), function(x){Cetacea_occ[conditions & Cetacea_occ$age_combined_interval==x,]$occurrence_combined_density[1]})
+stratigraphic_range_density <- sapply(names(stratigraphic_range_table), function(x){Cetacea_occ[conditions & Cetacea_occ$stratigraphic_range==x,]$occurrence_combined_density[1]})
 
-combined_df_density <- data.frame(x=combined_interval_mean_age,
-                                  y=combined_interval_density)
+stratigraphic_range_df_density <- data.frame(x=stratigraphic_range_mean_age,
+                                             y=stratigraphic_range_density)
 
-ggplot(combined_df_density, aes(x=x, y=y)) + 
+ggplot(stratigraphic_range_df_density, aes(x=x, y=y)) + 
   geom_point(alpha=0.5) +
   geom_smooth(formula = y~x, method=lm) + 
   scale_x_continuous(name = "Time (My)") +
-  scale_y_continuous(name = "Combined density") +
+  scale_y_continuous(name = "Combined occurrence density") +
   ggtitle("Correlation between combined density and age") +
-  geom_text(x = 15, y = 6, label = lm_eqn(combined_df_density), parse = TRUE)
+  geom_text(x = 15, y = 6, label = lm_eqn(stratigraphic_range_df_density), parse = TRUE)
 ```
 
-$\to$ The density based on combined ranges seems less time-dependant than the density based on initial time ranges. We will therefore use the combined density for our corrections.
+$\to$ The density based on combined ranges seems less time-dependent than the density based on initial time ranges. We will therefore use the combined density for our corrections.
 
-## Subsampling occurrences by homogenizing the combined occurrence density
+## BIAS CORRECTION N°3: Subsample occurrences by homogenizing the combined occurrence density
 
-**Subsampling by homogenization** = reducing the discrepancy between high and low occurrence densities among taxa by subsampling preferencially the densest ones.
+**Subsampling by homogenization** = reducing the discrepancy between high and low occurrence densities among taxa by subsampling preferentially the densest ones.
 
 ### Compare densities by accepted name count (species only)
 
 Let's focus now on the occurrences accepted at the species level because they are the one for which we can correct the abundance bias by subsampling the most concentrated combined intervals.
 
 ```{r, fig.asp=0.5, fig.width=12}
-conditions <- Cetacea_occ$accepted_rank =="species" & Cetacea_occ$age_range<10
+conditions <- Cetacea_occ$accepted_rank =="species" & Cetacea_occ$age_uncertainty<10
 
 # ggplot(Cetacea_occ[conditions,], aes(x=occurrence_density, fill=factor(accepted_name_count))) +
 #   geom_histogram(binwidth=0.1) +
@@ -661,7 +676,7 @@ $\to$ Their is a huge span of densities driven by the number of occurrences for 
 ### Impact of correcting subsampling on density distributions (species only)
 
 ```{r, fig.asp=0.4, fig.width=12}
-conditions <- Cetacea_occ$accepted_rank =="species" & Cetacea_occ$age_range<10
+conditions <- Cetacea_occ$accepted_rank =="species" & Cetacea_occ$age_uncertainty<10
 
 # ggplot(Cetacea_occ[conditions,], aes(x=occurrence_combined_density, fill=factor(accepted_name_count))) +
 #   geom_histogram(binwidth=0.05) +
@@ -691,9 +706,9 @@ Cetacea_occ_sampled <- rbind(Cetacea_occ_sampled,
 
 Cetacea_occ_sampled$min_min_ma <- apply(Cetacea_occ_sampled, 1, function(X){min(Cetacea_occ_sampled[Cetacea_occ_sampled$accepted_name==X["accepted_name"],]$min_ma)})
 Cetacea_occ_sampled$max_max_ma <- apply(Cetacea_occ_sampled, 1, function(X){max(Cetacea_occ_sampled[Cetacea_occ_sampled$accepted_name==X["accepted_name"],]$max_ma)})
-Cetacea_occ_sampled$age_combined_range <- Cetacea_occ_sampled$max_max_ma-Cetacea_occ_sampled$min_min_ma
+Cetacea_occ_sampled$stratigraphic_range_duration <- Cetacea_occ_sampled$max_max_ma-Cetacea_occ_sampled$min_min_ma
 Cetacea_occ_sampled$accepted_name_count <- sapply(Cetacea_occ_sampled$accepted_name, function(x){table(Cetacea_occ_sampled$accepted_name)[x]})
-Cetacea_occ_sampled$occurrence_combined_density <- Cetacea_occ_sampled$accepted_name_count/Cetacea_occ_sampled$age_combined_range
+Cetacea_occ_sampled$occurrence_combined_density <- Cetacea_occ_sampled$accepted_name_count/Cetacea_occ_sampled$stratigraphic_range_duration
 
 
 ggplot(Cetacea_occ_sampled, aes(x=occurrence_combined_density, fill=factor(accepted_name_count))) +
@@ -709,13 +724,13 @@ $\to$ Subsampling by homogenization successfully reduces the density span from 2
 
 ### Impact of subsampling on occurrences repartition (species only)
 
-See what our distributions look like after subsampling :
+See what our distributions look like after subsampling:
 
 ```{r, fig.asp=0.5, fig.width=12}
 breaks <- c(0.125,0.25,0.5,1,2,4,8,16)
 
-# ggplot(Cetacea_occ[Cetacea_occ$accepted_rank =="species" & Cetacea_occ$age_range<10,], aes(x=-max_ma, y=accepted_name)) +
-#   geom_segment(aes(x = -max_max_ma, y = reorder(accepted_name, -age_combined_mean), xend = -min_min_ma, yend=reorder(accepted_name, -age_combined_mean), color=occurrence_combined_density), arrow=arrow(ends = "both", angle=90, length = unit(1, "mm")), alpha=0.5) +
+# ggplot(Cetacea_occ[Cetacea_occ$accepted_rank =="species" & Cetacea_occ$age_uncertainty<10,], aes(x=-max_ma, y=accepted_name)) +
+#   geom_segment(aes(x = -max_max_ma, y = reorder(accepted_name, -stratigraphic_range_midpoint), xend = -min_min_ma, yend=reorder(accepted_name, -stratigraphic_range_midpoint), color=occurrence_combined_density), arrow=arrow(ends = "both", angle=90, length = unit(1, "mm")), alpha=0.5) +
 #   geom_point(aes(x=-age_runif), col="red", cex=0.5, alpha=0.5) +
 #   scale_x_continuous(name = "Time (My)") +
 #   scale_y_discrete(name = "Species") +
@@ -724,10 +739,10 @@ breaks <- c(0.125,0.25,0.5,1,2,4,8,16)
 #         axis.ticks.y=element_blank(),
 #         panel.grid.major.y = element_blank()) +
 #   scale_color_gradientn(colours = c("darkblue", "forestgreen", "black"), trans="log", breaks=breaks, labels=breaks) + 
-#   ggtitle(paste("Distributions of species fossil age ranges, before correcting sampling (n = ", dim(Cetacea_occ[Cetacea_occ$accepted_rank =="species" & Cetacea_occ$age_range<10,])[1], ")", sep=""))
+#   ggtitle(paste("Distributions of species fossil age uncertainties, before correcting sampling (n = ", dim(Cetacea_occ[Cetacea_occ$accepted_rank =="species" & Cetacea_occ$age_uncertainty<10,])[1], ")", sep=""))
 
 ggplot(Cetacea_occ_sampled, aes(x=-max_ma, y=accepted_name)) +
-  geom_segment(aes(x = -max_max_ma, y = reorder(accepted_name, -age_combined_mean), xend = -min_min_ma, yend=reorder(accepted_name, -age_combined_mean), color=occurrence_combined_density), arrow=arrow(ends = "both", angle=90, length = unit(1, "mm")), alpha=0.5) +
+  geom_segment(aes(x = -max_max_ma, y = reorder(accepted_name, -stratigraphic_range_midpoint), xend = -min_min_ma, yend=reorder(accepted_name, -stratigraphic_range_midpoint), color=occurrence_combined_density), arrow=arrow(ends = "both", angle=90, length = unit(1, "mm")), alpha=0.5) +
   geom_point(aes(x=-age_runif), col="red", cex=0.5, alpha=0.5) +
   scale_x_continuous(name = "Time (My)") +
   scale_y_discrete(name = "Species") +
@@ -736,13 +751,13 @@ ggplot(Cetacea_occ_sampled, aes(x=-max_ma, y=accepted_name)) +
         axis.ticks.y=element_blank(),
         panel.grid.major.y = element_blank()) +
   scale_color_gradientn(colours = c("darkblue", "forestgreen", "black"), trans="log", breaks=breaks, labels=breaks) + 
-  ggtitle(paste("Distributions of species fossil age ranges, after subsampling by homogenization (n = ", dim(Cetacea_occ_sampled)[1], ")", sep=""))
+  ggtitle(paste("Distributions of species fossil age uncertainties, after subsampling by homogenization (n = ", dim(Cetacea_occ_sampled)[1], ")", sep=""))
 ```
 
 $\to$ Some highly dense cluster became much more similar to the others.
 
 ```{r fig.width=10, fig.asp=0.3}
-conditions <- Cetacea_occ$accepted_rank =="species" & Cetacea_occ$age_range<10
+conditions <- Cetacea_occ$accepted_rank =="species" & Cetacea_occ$age_uncertainty<10
 
 ggplot(Cetacea_occ[conditions,], aes(x=-age_runif)) +
   geom_histogram(binwidth = 0.5, alpha=0.5, fill="red") +
@@ -761,10 +776,10 @@ ggplot(Cetacea_occ_sampled, aes(x=-age_runif)) +
   ggtitle(paste("Evolution of the species occurrence number through time, after subsampling by homogenization (n = ", dim(Cetacea_occ_sampled)[1], ")", sep=""))
 ```
 
-If we superpose these 2 plots :
+If we superpose these 2 plots:
 
 ```{r fig.width=10, fig.asp=0.4}
-conditions <- Cetacea_occ$accepted_rank =="species" & Cetacea_occ$age_range<10
+conditions <- Cetacea_occ$accepted_rank =="species" & Cetacea_occ$age_uncertainty<10
 
 p1 <- ggplot(Cetacea_occ[conditions,], aes(x=-age_runif)) +
   geom_histogram(binwidth = 0.5, alpha=0.5, fill="red") +
@@ -777,16 +792,16 @@ p2 <- ggplot(Cetacea_occ_sampled, aes(x=-age_runif)) +
 p1 + annotation_custom(ggplotGrob(p2))
 ```
 
-$\to$ We get the new species occurrence repartition after subsampling, that could be used for doing inference with the occurrence birth-death model.
+$\to$ We get the new species occurrence distribution after subsampling, that could be used for doing inference with the occurrence birth-death model.
 
-## Compare with a Poisson sampling process
+### Compare with a Poisson sampling process
 
-In order to check if the data fit our assumptions of constant-fossilisation-rate Poisson sampling we compare the observed occurrences distributions with the expected ones. Specifically, we will look at the number of taxa represented by 1, 2, 3, ... occurrences and the one that we would expect for a given distribution of combined age ranges (seen here as a proxy for species duration).
+In order to check if the data fit our assumptions of constant-fossilization-rate Poisson sampling we compare the observed occurrences distributions with the expected ones. Specifically, we will look at the number of taxa represented by 1, 2, 3, ... occurrences and the one that we would expect for a given distribution of stratigraphic ranges (seen here as a proxy for species duration).
 
 ```{r, fig.asp=0.5, fig.width=10}
-conditions <- !(Cetacea_occ$accepted_rank %in% c("subspecies", "infraorder")) & Cetacea_occ$age_range<10
+conditions <- !(Cetacea_occ$accepted_rank %in% c("subspecies", "infraorder")) & Cetacea_occ$age_uncertainty<10
 
-ggplot(Cetacea_occ[conditions,], aes(x=age_combined_range, fill=accepted_rank)) +
+ggplot(Cetacea_occ[conditions,], aes(x=stratigraphic_range_duration, fill=accepted_rank)) +
   geom_histogram(binwidth = 1) + 
   #geom_point() +
   scale_x_continuous(name = "Age range (My)") +
@@ -794,7 +809,7 @@ ggplot(Cetacea_occ[conditions,], aes(x=age_combined_range, fill=accepted_rank)) 
   scale_fill_discrete(name="Accepted rank") +
   theme(panel.grid.major.x = element_blank(),
         legend.position="bottom") +
-  ggtitle("Observed distributions of combined age ranges") +
+  ggtitle("Observed distributions of stratigraphic ranges") +
   facet_grid(. ~ accepted_rank, scales = "free")
 
 ggplot(Cetacea_occ[conditions,], aes(x=accepted_name_count, y=(table(accepted_name_count)/as.numeric(names(table(accepted_name_count))))[as.factor(accepted_name_count)], col=accepted_rank)) +
@@ -808,40 +823,40 @@ ggplot(Cetacea_occ[conditions,], aes(x=accepted_name_count, y=(table(accepted_na
   facet_grid(accepted_rank ~ ., scales = "free")
 ```
 
-In a Poisson process with occurrence sampling rate $\omega$ and for a given time interval of length $t$, the probability of observing $N_t = k$ occurrences is given by the Poisson distribution of mean of parameter $\omega\times t$ : 
+In a Poisson process with occurrence sampling rate $\omega$ and for a given time interval of length $t$, the probability of observing $N_t = k$ occurrences is given by the Poisson distribution of mean of parameter $\omega\times t$: 
 
 $$\mathbb{P}(N_t=k) = e^{-\omega t}\frac{(\omega t)^k}{k!}$$
 
-So in order to have the absolute probability of observing $N_0 = n$ occurrences we have to integrate over the full distribution of age ranges $t$, called $f(t)$ :
+So in order to have the absolute probability of observing $N_0 = n$ occurrences we have to integrate over the full distribution of age uncertainties $t$, called $f(t)$:
 
 $$\mathbb{P}(N_0 = n) = \int_t P(N_t = n) f(t) dt = \int_t e^{-\omega t}\frac{(\omega t)^n}{n!} f(t) dt$$
 
-First,  approximate this distribution :
+First,  approximate this distribution:
 
 ```{r}
-range_density <- approxfun(density(Cetacea_occ[Cetacea_occ$accepted_rank=="species",]$age_combined_range[is.finite(Cetacea_occ[Cetacea_occ$accepted_rank=="species",]$age_combined_range)]))
+range_density <- approxfun(density(Cetacea_occ[Cetacea_occ$accepted_rank=="species",]$stratigraphic_range_duration[is.finite(Cetacea_occ[Cetacea_occ$accepted_rank=="species",]$stratigraphic_range_duration)]))
 
-hist(Cetacea_occ[Cetacea_occ$accepted_rank=="species",]$age_combined_range, probability = T, breaks = 20, main="Density approximation of the empirical range distribution", xlab = "Age range (My)")
+hist(Cetacea_occ[Cetacea_occ$accepted_rank=="species",]$stratigraphic_range_duration, probability = T, breaks = 20, main="Density approximation of the empirical stratigraphic range distribution", xlab = "Age range (My)")
 lines(1:100/5, range_density(1:100/5))
 ```
 
-Then integrate and plot the expected distribution for a given omega :
+Then integrate and plot the expected distribution for a given omega:
 
 ```{r fig.asp=0.3, fig.width=11}
-expected_distribution <- function(n, omega, age_combined_range){
-  range_density <- approxfun(density(age_combined_range[is.finite(age_combined_range)]))
+expected_distribution <- function(n, omega, stratigraphic_range_duration){
+  range_density <- approxfun(density(stratigraphic_range_duration[is.finite(stratigraphic_range_duration)]))
   g <- function(t){dpois(n, omega*t)*range_density(t)}
-  return (integrate(g, lower = 1, upper = max(age_combined_range)))
+  return (integrate(g, lower = 1, upper = max(stratigraphic_range_duration)))
 }
 
 omega <- 0.1
 
-dens <- sapply(0:20, function(n){expected_distribution(n, omega, Cetacea_occ[Cetacea_occ$accepted_rank=="species",]$age_combined_range)$value})
+dens <- sapply(0:20, function(n){expected_distribution(n, omega, Cetacea_occ[Cetacea_occ$accepted_rank=="species",]$stratigraphic_range_duration)$value})
 
 plot(0:20, dens, main="Expected distribution of the number of accepted names with the same number of occurrences", xlab="Number of occurrences with the same accepted name", ylab = "Proportions", type = "b")
 ```
 
-Finally, try to find an $\omega$ value that approximately fits the first points (the least affected by oversampling biases) and check if the other points follow the expected curve :
+Finally, try to find an $\omega$ value that approximately fits the first points (the least affected by oversampling biases) and check if the other points follow the expected curve:
 
 ```{r fig.width=10, fig.asp=0.4}
 # Recount the number of occurrences with the same accepted name after the sampling
@@ -849,7 +864,7 @@ Cetacea_occ_sampled$accepted_name_count <- sapply(Cetacea_occ_sampled$accepted_n
 
 omega <- 0.1
 accepted_name_count_species <- Cetacea_occ[Cetacea_occ$accepted_rank=="species",]$accepted_name_count
-dens <- sapply(1:max(accepted_name_count_species), function(n){ expected_distribution(n, omega, Cetacea_occ[Cetacea_occ$accepted_rank=="species",]$age_combined_range)$value })
+dens <- sapply(1:max(accepted_name_count_species), function(n){ expected_distribution(n, omega, Cetacea_occ[Cetacea_occ$accepted_rank=="species",]$stratigraphic_range_duration)$value })
 accepted_name_count_categories <- table(accepted_name_count_species)/as.numeric(names(table(accepted_name_count_species)))  # Number of categories with 1, 2, 3, ... occurrences of the same species
 
 # Compare the initial observed distribution with the theoretical curve
@@ -872,7 +887,7 @@ ggplot(Cetacea_occ[Cetacea_occ$accepted_rank=="species",],
 
 accepted_name_count_species_sampled <- Cetacea_occ_sampled[Cetacea_occ_sampled$accepted_rank=="species",]$accepted_name_count
 dens_sampled <- sapply(1:max(accepted_name_count_species_sampled), function(n){
-     expected_distribution(n, omega, Cetacea_occ_sampled[Cetacea_occ_sampled$accepted_rank=="species",]$age_combined_range)$value
+     expected_distribution(n, omega, Cetacea_occ_sampled[Cetacea_occ_sampled$accepted_rank=="species",]$stratigraphic_range_duration)$value
     })
 accepted_name_count_categories_sampled <- table(accepted_name_count_species_sampled)/as.numeric(names(table(accepted_name_count_species_sampled)))  # Number of categories with 1, 2, 3, ... occurrences of the same species
 
@@ -899,13 +914,13 @@ $\implies$ Initial observations really do not fit the expectations, **species wi
 
 However, this method requires to make several arbitrary choices that may introduce new biases so we will instead subsample at other levels (palaeontological collection, geological formation). In each case only one occurrence will be sampled for the similarly identified, a process we will refer to as **aggregating** these occurrences according to the chosen factor.
 
-## Subsampling occurrences by aggregating similarly identified occurrences in each collection
+## BIAS CORRECTION N°3bis: Subsample occurrences by aggregating similarly identified occurrences in each collection
 
-**Subsampling by aggregation** = aggregate all the occurrences of a given taxon according to a given criterium (collection, geological formation, country, geological plate).
+**Subsampling by aggregation** = aggregate all the occurrences of a given taxon according to a given criterion (collection, geological formation, country, geological plate).
 
-## Aggregate similarly identified occurrences in each collection
+## Wrong track: Aggregate similarly identified occurrences in each collection
 
-In order to reduce the abundance bias, we may keep only one occurrence for each collection :
+In order to reduce the abundance bias, we may keep only one occurrence for each collection:
 
 ```{r}
 Cetacea_occ_aggreg <- c()
@@ -931,7 +946,7 @@ data.frame(Cetacea_occ = c(dim(Cetacea_occ)[1],
            row.names = c("Number of occurrences", "Number of occurrences (species only)"))
 ```
 
-$\to$ Not enough occurrences are removed to make a sufficient difference. If we look at the collection with the highest number of occurrences :
+$\to$ Not enough occurrences are removed to make a sufficient difference. If we look at the collection with the highest number of occurrences:
 
 ```{r}
 collection_max_occurrences <- max(table(Cetacea_occ$collection_no)[Cetacea_occ$collection_no])
@@ -1018,7 +1033,7 @@ Cetacea_occ_aggreg$accepted_name_count <- sapply(Cetacea_occ_aggreg$accepted_nam
 
 omega <- 0.1
 accepted_name_count_species <- Cetacea_occ[Cetacea_occ$accepted_rank=="species",]$accepted_name_count
-dens <- sapply(1:max(accepted_name_count_species), function(n){ expected_distribution(n, omega, Cetacea_occ[Cetacea_occ$accepted_rank=="species",]$age_combined_range)$value })
+dens <- sapply(1:max(accepted_name_count_species), function(n){ expected_distribution(n, omega, Cetacea_occ[Cetacea_occ$accepted_rank=="species",]$stratigraphic_range_duration)$value })
 accepted_name_count_categories <- table(accepted_name_count_species)/as.numeric(names(table(accepted_name_count_species)))  # Number of categories with 1, 2, 3, ... occurrences of the same species
 
 # Compare the initial observed distribution with the theoretical curve
@@ -1041,7 +1056,7 @@ ggplot(Cetacea_occ[Cetacea_occ$accepted_rank=="species",],
 
 accepted_name_count_species_aggreg <- Cetacea_occ_aggreg[Cetacea_occ_aggreg$accepted_rank=="species",]$accepted_name_count
 dens_aggreg <- sapply(1:max(accepted_name_count_species_aggreg), function(n){
-     expected_distribution(n, omega, Cetacea_occ_aggreg[Cetacea_occ_aggreg$accepted_rank=="species",]$age_combined_range)$value
+     expected_distribution(n, omega, Cetacea_occ_aggreg[Cetacea_occ_aggreg$accepted_rank=="species",]$stratigraphic_range_duration)$value
     })
 accepted_name_count_categories_aggreg <- table(accepted_name_count_species_aggreg)/as.numeric(names(table(accepted_name_count_species_aggreg)))  # Number of categories with 1, 2, 3, ... occurrences of the same species
 
@@ -1065,7 +1080,7 @@ ggplot(Cetacea_occ_aggreg[Cetacea_occ_aggreg$accepted_rank=="species",],
 
 accepted_name_count_species_aggreg <- Cetacea_occ_aggreg[Cetacea_occ_aggreg$accepted_rank=="species",]$accepted_name_count
 dens_aggreg <- sapply(1:max(accepted_name_count_species_aggreg), function(n){
-     expected_distribution(n, omega, Cetacea_occ_aggreg[Cetacea_occ_aggreg$accepted_rank=="species",]$age_combined_range)$value
+     expected_distribution(n, omega, Cetacea_occ_aggreg[Cetacea_occ_aggreg$accepted_rank=="species",]$stratigraphic_range_duration)$value
     })
 accepted_name_count_categories_aggreg <- table(accepted_name_count_species_aggreg)/as.numeric(names(table(accepted_name_count_species_aggreg)))  # Number of categories with 1, 2, 3, ... occurrences of the same species
 ```
@@ -1100,11 +1115,11 @@ p3 <- ggplot(Cetacea_occ_aggreg[Cetacea_occ_aggreg$accepted_rank =="species",], 
 p1 + annotation_custom(ggplotGrob(p2)) + annotation_custom(ggplotGrob(p3)) + ggtitle("Initial occurrences distribution (red) and comparison after sub-sampling (blue) or aggregating in formations (green)")
 ```
 
-$\to$ Comparing with the initial occurrences distribution and with the distribution after our first sub-sampling it appears that both methods lead to very similar distributions. This conforts us about the robustness of those approaches.
+$\to$ Comparing with the initial occurrences distribution and with the distribution after our first sub-sampling it appears that both methods lead to very similar distributions. This comforts us about the robustness of those approaches.
 
 However, we have to take into account the occurrences that do not have any indicated geological formation to subsample them separately.
 
-## Aggregate occurrences without formation by country + early interval
+## Wrong track: Aggregate occurrences without formation by country + early interval
 
 To approximate geological formation we chose to proceed to the aggregation based on the combination of the country and the early stratigraphic interval.
 
@@ -1151,7 +1166,7 @@ data.frame(Cetacea_occ = c(dim(Cetacea_occ)[1],
            row.names = c("Number of occurrences", "Number of occurrences (species only)"))
 ```
 
-More occurrences remain after aggregating with this new method. Let's compare again with the theoretical distribution :
+More occurrences remain after aggregating with this new method. Let's compare again with the theoretical distribution:
 
 ```{r fig.width=10, fig.asp=0.4}
 # Recount the number of occurrences with the same accepted name after the aggregation
@@ -1159,7 +1174,7 @@ Cetacea_occ_aggreg$accepted_name_count <- sapply(Cetacea_occ_aggreg$accepted_nam
 
 omega <- 0.15
 accepted_name_count_species <- Cetacea_occ[Cetacea_occ$accepted_rank=="species",]$accepted_name_count
-dens <- sapply(1:max(accepted_name_count_species), function(n){ expected_distribution(n, omega, Cetacea_occ[Cetacea_occ$accepted_rank=="species",]$age_combined_range)$value })
+dens <- sapply(1:max(accepted_name_count_species), function(n){ expected_distribution(n, omega, Cetacea_occ[Cetacea_occ$accepted_rank=="species",]$stratigraphic_range_duration)$value })
 accepted_name_count_categories <- table(accepted_name_count_species)/as.numeric(names(table(accepted_name_count_species)))  # Number of categories with 1, 2, 3, ... occurrences of the same species
 
 # Compare the initial observed distribution with the theoretical curve
@@ -1182,7 +1197,7 @@ ggplot(Cetacea_occ[Cetacea_occ$accepted_rank=="species",],
 
 accepted_name_count_species_aggreg <- Cetacea_occ_aggreg[Cetacea_occ_aggreg$accepted_rank=="species",]$accepted_name_count
 dens_aggreg <- sapply(1:max(accepted_name_count_species_aggreg), function(n){
-     expected_distribution(n, omega, Cetacea_occ_aggreg[Cetacea_occ_aggreg$accepted_rank=="species",]$age_combined_range)$value
+     expected_distribution(n, omega, Cetacea_occ_aggreg[Cetacea_occ_aggreg$accepted_rank=="species",]$stratigraphic_range_duration)$value
     })
 accepted_name_count_categories_aggreg <- table(accepted_name_count_species_aggreg)/as.numeric(names(table(accepted_name_count_species_aggreg)))  # Number of categories with 1, 2, 3, ... occurrences of the same species
 
@@ -1206,32 +1221,32 @@ ggplot(Cetacea_occ_aggreg[Cetacea_occ_aggreg$accepted_rank=="species",],
 
 accepted_name_count_species_aggreg <- Cetacea_occ_aggreg[Cetacea_occ_aggreg$accepted_rank=="species",]$accepted_name_count
 dens_aggreg <- sapply(1:max(accepted_name_count_species_aggreg), function(n){
-     expected_distribution(n, omega, Cetacea_occ_aggreg[Cetacea_occ_aggreg$accepted_rank=="species",]$age_combined_range)$value
+     expected_distribution(n, omega, Cetacea_occ_aggreg[Cetacea_occ_aggreg$accepted_rank=="species",]$stratigraphic_range_duration)$value
     })
 accepted_name_count_categories_aggreg <- table(accepted_name_count_species_aggreg)/as.numeric(names(table(accepted_name_count_species_aggreg)))  # Number of categories with 1, 2, 3, ... occurrences of the same species
 ```
 
-$\to$ The correspondance is still good, except for two taxa :
+$\to$ The correspondence is still good, except for two taxa:
 
 ```{r}
 table(droplevels(Cetacea_occ_aggreg[Cetacea_occ_aggreg$accepted_rank=="species",][accepted_name_count_species_aggreg>10,]$accepted_name))
 ```
 
 ```{r, warning=FALSE}
-Cetacea_occ_aggreg$age_range <- Cetacea_occ_aggreg$max_ma-Cetacea_occ_aggreg$min_ma
-Cetacea_occ_aggreg$min_min_ma <- apply(Cetacea_occ_aggreg, 1, function(X){min(Cetacea_occ_aggreg[Cetacea_occ_aggreg$age_range<10 & Cetacea_occ_aggreg$accepted_name==X["accepted_name"],]$min_ma)})
-Cetacea_occ_aggreg$max_max_ma <- apply(Cetacea_occ_aggreg, 1, function(X){max(Cetacea_occ_aggreg[Cetacea_occ_aggreg$age_range<10 & Cetacea_occ_aggreg$accepted_name==X["accepted_name"],]$max_ma)})
-Cetacea_occ_aggreg$age_combined_mean <- (Cetacea_occ_aggreg$min_min_ma + Cetacea_occ_aggreg$max_max_ma)/2
-Cetacea_occ_aggreg$age_combined_range <- Cetacea_occ_aggreg$max_max_ma-Cetacea_occ_aggreg$min_min_ma
+Cetacea_occ_aggreg$age_uncertainty <- Cetacea_occ_aggreg$max_ma-Cetacea_occ_aggreg$min_ma
+Cetacea_occ_aggreg$min_min_ma <- apply(Cetacea_occ_aggreg, 1, function(X){min(Cetacea_occ_aggreg[Cetacea_occ_aggreg$age_uncertainty<10 & Cetacea_occ_aggreg$accepted_name==X["accepted_name"],]$min_ma)})
+Cetacea_occ_aggreg$max_max_ma <- apply(Cetacea_occ_aggreg, 1, function(X){max(Cetacea_occ_aggreg[Cetacea_occ_aggreg$age_uncertainty<10 & Cetacea_occ_aggreg$accepted_name==X["accepted_name"],]$max_ma)})
+Cetacea_occ_aggreg$stratigraphic_range_midpoint <- (Cetacea_occ_aggreg$min_min_ma + Cetacea_occ_aggreg$max_max_ma)/2
+Cetacea_occ_aggreg$stratigraphic_range_duration <- Cetacea_occ_aggreg$max_max_ma-Cetacea_occ_aggreg$min_min_ma
 Cetacea_occ_aggreg$accepted_name_count <- sapply(Cetacea_occ_aggreg$accepted_name, function(x){table(Cetacea_occ_aggreg$accepted_name)[x]})
-Cetacea_occ_aggreg$occurrence_combined_density <- Cetacea_occ_aggreg$accepted_name_count/Cetacea_occ_aggreg$age_combined_range
+Cetacea_occ_aggreg$occurrence_combined_density <- Cetacea_occ_aggreg$accepted_name_count/Cetacea_occ_aggreg$stratigraphic_range_duration
 ```
 
 ```{r fig.asp=0.5, fig.width=10, message=FALSE}
 breaks <- c(0.125,0.25,0.5,1,2,4,8,16)
 
-p_before <- ggplot(Cetacea_occ[Cetacea_occ$accepted_rank =="species" & Cetacea_occ$age_range<10,], aes(x=-max_ma, y=accepted_name)) +
-  geom_segment(aes(x = -max_max_ma, y = reorder(accepted_name, -age_combined_mean), xend = -min_min_ma, yend=reorder(accepted_name, -age_combined_mean), color=occurrence_combined_density), arrow=arrow(ends = "both", angle=90, length = unit(1, "mm")), alpha=0.5) +
+p_before <- ggplot(Cetacea_occ[Cetacea_occ$accepted_rank =="species" & Cetacea_occ$age_uncertainty<10,], aes(x=-max_ma, y=accepted_name)) +
+  geom_segment(aes(x = -max_max_ma, y = reorder(accepted_name, -stratigraphic_range_midpoint), xend = -min_min_ma, yend=reorder(accepted_name, -stratigraphic_range_midpoint), color=occurrence_combined_density), arrow=arrow(ends = "both", angle=90, length = unit(1, "mm")), alpha=0.5) +
   geom_point(aes(x=-age_runif), col="red", cex=0.5, alpha=0.5) +
   scale_x_continuous(name = "Time (My)") +
   scale_y_discrete(name = "Species") +
@@ -1243,13 +1258,13 @@ p_before <- ggplot(Cetacea_occ[Cetacea_occ$accepted_rank =="species" & Cetacea_o
         legend.background = element_rect(fill = "transparent", color = NA),
         legend.box.background = element_rect(fill = "transparent", color = NA)) +
   scale_color_gradientn(colours = c("darkblue", "forestgreen", "black"), trans="log", breaks=breaks, labels=breaks) + 
-  ggtitle(paste("Distributions of species fossil age ranges, before subsampling (n = ", dim(Cetacea_occ[Cetacea_occ$accepted_rank =="species" & Cetacea_occ$age_range<10,])[1], ")", sep=""))
+  ggtitle(paste("Distributions of species fossil age uncertainties, before subsampling (n = ", dim(Cetacea_occ[Cetacea_occ$accepted_rank =="species" & Cetacea_occ$age_uncertainty<10,])[1], ")", sep=""))
 p_before
 
 ggsave("../Images/Range_distributions_before_aggregating.svg", plot = p_before, device = "svg", bg = "transparent")
 
-p_after <- ggplot(Cetacea_occ_aggreg[Cetacea_occ_aggreg$accepted_rank =="species" & Cetacea_occ_aggreg$age_range<10,], aes(x=-max_ma, y=accepted_name)) +
-  geom_segment(aes(x = -max_max_ma, y = reorder(accepted_name, -age_combined_mean), xend = -min_min_ma, yend=reorder(accepted_name, -age_combined_mean), color=occurrence_combined_density), arrow=arrow(ends = "both", angle=90, length = unit(1, "mm")), alpha=0.5) +
+p_after <- ggplot(Cetacea_occ_aggreg[Cetacea_occ_aggreg$accepted_rank =="species" & Cetacea_occ_aggreg$age_uncertainty<10,], aes(x=-max_ma, y=accepted_name)) +
+  geom_segment(aes(x = -max_max_ma, y = reorder(accepted_name, -stratigraphic_range_midpoint), xend = -min_min_ma, yend=reorder(accepted_name, -stratigraphic_range_midpoint), color=occurrence_combined_density), arrow=arrow(ends = "both", angle=90, length = unit(1, "mm")), alpha=0.5) +
   geom_point(aes(x=-age_runif), col="red", cex=0.5, alpha=0.5) +
   scale_x_continuous(name = "Time (My)") +
   scale_y_discrete(name = "Species") +
@@ -1261,7 +1276,7 @@ p_after <- ggplot(Cetacea_occ_aggreg[Cetacea_occ_aggreg$accepted_rank =="species
         legend.background = element_rect(fill = "transparent", color = NA),
         legend.box.background = element_rect(fill = "transparent", color = NA)) +
   scale_color_gradientn(colours = c("darkblue", "forestgreen", "black"), trans="log", breaks=breaks, labels=breaks) + 
-  ggtitle(paste("Distributions of species fossil age ranges, after subsampling by aggregation (n = ", dim(Cetacea_occ_sampled)[1], ")", sep=""))
+  ggtitle(paste("Distributions of species fossil age uncertainties, after subsampling by aggregation (n = ", dim(Cetacea_occ_sampled)[1], ")", sep=""))
 p_after
 
 ggsave("../Images/Range_distributions_after_aggregating.svg", plot = p_after, device = "svg", bg = "transparent")
@@ -1298,9 +1313,9 @@ p_all
 ggsave("../Images/Occurrence_distributions_comparison.svg", plot = p_all, device = "svg", bg = "transparent")
 ```
 
-$\to$ Comparing with the initial occurrences distribution and with the distribution after our first sub-sampling it appears that both methods lead to very similar distributions. This conforts us about the robustness of those approaches.
+$\to$ Comparing with the initial occurrences distribution and with the distribution after our first sub-sampling it appears that both methods lead to very similar distributions. This comforts us about the robustness of those approaches.
 
-Replacing coutries by gelogical plates seems to make more sens from a palaeontological perspective, so let's try it.
+Replacing countries by geological plates seems to make more sens from a palaeontological perspective, so let's try it.
 
 ## Aggregate occurrences without formation by geoplate + early interval
 
@@ -1347,7 +1362,7 @@ data.frame(Cetacea_occ = c(dim(Cetacea_occ)[1],
            row.names = c("Number of occurrences", "Number of occurrences (species only)"))
 ```
 
-More occurrences remain after aggregating with this new method. Let's compare again with the theoretical distribution :
+More occurrences remain after aggregating with this new method. Let's compare again with the theoretical distribution:
 
 ```{r fig.width=10, fig.asp=0.4}
 # Recount the number of occurrences with the same accepted name after the aggregation
@@ -1355,7 +1370,7 @@ Cetacea_occ_aggreg$accepted_name_count <- sapply(Cetacea_occ_aggreg$accepted_nam
 
 omega <- 0.15
 accepted_name_count_species <- Cetacea_occ[Cetacea_occ$accepted_rank=="species",]$accepted_name_count
-dens <- sapply(1:max(accepted_name_count_species), function(n){ expected_distribution(n, omega, Cetacea_occ[Cetacea_occ$accepted_rank=="species",]$age_combined_range)$value })
+dens <- sapply(1:max(accepted_name_count_species), function(n){ expected_distribution(n, omega, Cetacea_occ[Cetacea_occ$accepted_rank=="species",]$stratigraphic_range_duration)$value })
 accepted_name_count_categories <- table(accepted_name_count_species)/as.numeric(names(table(accepted_name_count_species)))  # Number of categories with 1, 2, 3, ... occurrences of the same species
 
 # Compare the initial observed distribution with the theoretical curve
@@ -1378,7 +1393,7 @@ ggplot(Cetacea_occ[Cetacea_occ$accepted_rank=="species",],
 
 accepted_name_count_species_aggreg <- Cetacea_occ_aggreg[Cetacea_occ_aggreg$accepted_rank=="species",]$accepted_name_count
 dens_aggreg <- sapply(1:max(accepted_name_count_species_aggreg), function(n){
-     expected_distribution(n, omega, Cetacea_occ_aggreg[Cetacea_occ_aggreg$accepted_rank=="species",]$age_combined_range)$value
+     expected_distribution(n, omega, Cetacea_occ_aggreg[Cetacea_occ_aggreg$accepted_rank=="species",]$stratigraphic_range_duration)$value
     })
 accepted_name_count_categories_aggreg <- table(accepted_name_count_species_aggreg)/as.numeric(names(table(accepted_name_count_species_aggreg)))  # Number of categories with 1, 2, 3, ... occurrences of the same species
 
@@ -1402,12 +1417,12 @@ ggplot(Cetacea_occ_aggreg[Cetacea_occ_aggreg$accepted_rank=="species",],
 
 accepted_name_count_species_aggreg <- Cetacea_occ_aggreg[Cetacea_occ_aggreg$accepted_rank=="species",]$accepted_name_count
 dens_aggreg <- sapply(1:max(accepted_name_count_species_aggreg), function(n){
-     expected_distribution(n, omega, Cetacea_occ_aggreg[Cetacea_occ_aggreg$accepted_rank=="species",]$age_combined_range)$value
+     expected_distribution(n, omega, Cetacea_occ_aggreg[Cetacea_occ_aggreg$accepted_rank=="species",]$stratigraphic_range_duration)$value
     })
 accepted_name_count_categories_aggreg <- table(accepted_name_count_species_aggreg)/as.numeric(names(table(accepted_name_count_species_aggreg)))  # Number of categories with 1, 2, 3, ... occurrences of the same species
 ```
 
-$\to$ The correspondance is still good, except for two taxa :
+$\to$ The correspondence is still good, except for two taxa:
 
 ```{r}
 table(droplevels(Cetacea_occ_aggreg[Cetacea_occ_aggreg$accepted_rank=="species",][accepted_name_count_species_aggreg>10,]$accepted_name))
@@ -1447,7 +1462,7 @@ $\to$ Delimiting by geological plates (+ age) instead of countries (+ age) leads
 
 Mystecetes are usually larger than odontocetes, and size is associated with a wider geographic range so since we are subsampling occurrences according to geological formation we may be biasing our data towards more widespread species, therefore towards mystecetes.
 
-Look at the families first :
+Look at the families first:
 
 ```{r fig.height=6}
 families <- rbind(Cetacea_occ = Cetacea_occ[Cetacea_occ$accepted_rank=="species",],
@@ -1462,9 +1477,9 @@ ggplot(families[families$family != "NO_FAMILY_SPECIFIED",], aes(x = Dataset, fil
     geom_bar(position="fill", col="black")
 ```
 
-$\to$ The family repartitions vary a bit after subsampling, but because of the limited number of species by family the fact that we corrected the oversampling of some species could have a disproportionate effect.
+$\to$ The family distributions vary a bit after subsampling, but because of the limited number of species by family the fact that we corrected the oversampling of some species could have a disproportionate effect.
 
-Let's look rather at a higher taxonomic rank, by importing the topology of cetacean families (from Marx et al. 2016) :
+Let's look rather at a higher taxonomic rank, by importing the topology of cetacean families (from Marx et al. 2016):
 
 ```{r fig.width=10, include=F}
 families_tree <- ape::read.tree("../bjoelle-stratigraphic_age_uncertainty_SI-9bbcef2/cetaceans_data/fossils/families.tre")
@@ -1561,6 +1576,7 @@ for (form in formations[-which(formations=="")]){
   }
 }
 
+# Genera for which the geological formation is missing
 # Browse all geoplates
 geoplates <- levels(droplevels(Cetacea_occ[Cetacea_occ$formation=="",]$geoplate))
 for (gp in geoplates){
@@ -1589,7 +1605,7 @@ data.frame(Cetacea_occ = c(dim(Cetacea_occ)[1],
            row.names = c("Number of occurrences", "Number of occurrences (species and genera only)"))
 ```
 
-More occurrences remain after aggregating with this new method. Let's compare again with the theoretical distribution :
+More occurrences remain after aggregating with this new method. Let's compare again with the theoretical distribution:
 
 ```{r fig.width=10, fig.asp=0.4}
 # Recount the number of occurrences with the same genus after the aggregation
@@ -1598,7 +1614,7 @@ Cetacea_occ_aggreg_gen$genus_count <- sapply(Cetacea_occ_aggreg_gen$genus, funct
 
 omega <- 0.3
 genus_count <- Cetacea_occ[Cetacea_occ$accepted_rank %in% c("species", "genus"),]$genus_count
-dens <- sapply(1:max(genus_count), function(n){ expected_distribution(n, omega, Cetacea_occ[Cetacea_occ$accepted_rank %in% c("species", "genus"),]$age_combined_range)$value })
+dens <- sapply(1:max(genus_count), function(n){ expected_distribution(n, omega, Cetacea_occ[Cetacea_occ$accepted_rank %in% c("species", "genus"),]$stratigraphic_range_duration)$value })
 genus_count_categories <- table(genus_count)/as.numeric(names(table(genus_count)))  # Number of categories with 1, 2, 3, ... occurrences of the same genus
 
 # Compare the initial observed distribution with the theoretical curve
@@ -1620,7 +1636,7 @@ ggplot(Cetacea_occ[Cetacea_occ$accepted_rank %in% c("species", "genus"),],
 
 genus_count_aggreg <- Cetacea_occ_aggreg_gen[Cetacea_occ_aggreg_gen$accepted_rank %in% c("species", "genus"),]$genus_count
 dens_aggreg <- sapply(1:max(genus_count_aggreg), function(n){
-     expected_distribution(n, omega, Cetacea_occ_aggreg_gen[Cetacea_occ_aggreg_gen$accepted_rank %in% c("species", "genus"),]$age_combined_range)$value
+     expected_distribution(n, omega, Cetacea_occ_aggreg_gen[Cetacea_occ_aggreg_gen$accepted_rank %in% c("species", "genus"),]$stratigraphic_range_duration)$value
     })
 
 # Number of categories with 1, 2, 3, ... occurrences of the same genus
@@ -1648,12 +1664,12 @@ ggplot(Cetacea_occ_aggreg_gen[Cetacea_occ_aggreg_gen$accepted_rank %in% c("speci
 
 genus_count_aggreg <- Cetacea_occ_aggreg_gen[Cetacea_occ_aggreg_gen$accepted_rank %in% c("species", "genus"),]$genus_count
 dens_aggreg <- sapply(1:max(genus_count_aggreg), function(n){
-     expected_distribution(n, omega, Cetacea_occ_aggreg_gen[Cetacea_occ_aggreg_gen$accepted_rank %in% c("species", "genus"),]$age_combined_range)$value
+     expected_distribution(n, omega, Cetacea_occ_aggreg_gen[Cetacea_occ_aggreg_gen$accepted_rank %in% c("species", "genus"),]$stratigraphic_range_duration)$value
     })
 genus_count_categories_aggreg <- table(genus_count_aggreg)/as.numeric(names(table(genus_count_aggreg)))  # Number of categories with 1, 2, 3, ... occurrences of the same genus
 ```
 
-$\to$ The correspondance is much less improved than with species aggregation because some genera have a lot of occurrences due to their high number of species species :
+$\to$ The correspondence is much less improved than with species aggregation because some genera have a lot of occurrences due to their high number of species:
 
 ```{r}
 table(droplevels(Cetacea_occ_aggreg_gen[(Cetacea_occ_aggreg_gen$accepted_rank %in% c("species", "genus")) & (Cetacea_occ_aggreg_gen$genus_count>25),]$genus))
@@ -1696,10 +1712,12 @@ write.table(Cetacea_occ_aggreg_gen[Cetacea_occ_aggreg_gen$accepted_rank %in% c("
 
 # Conclusions
 
-  - It seems possible to adequately reduce the abundance bias by subsampling the most concentrated intervals, based on a metrics of occurrence density (number of occurrences / time range)
-  - An alternative sampling method consisting in aggregating the occurrences of the same taxa found in the same geological formation (or the same geoplate + eearly stratigraphic interval if the geological formation is not indicated) seems to work as well, and is more paleontologically relevant
-  - Using combined ranges by species appears to be more robust
-  - Very recent samples may have been dated with a more precise method and contain much more fossils, so they should be removed or treated separatadely
+Several biases affect the cetacean fossil record:
 
+  - BIAS 1: Very recent samples may have been dated with a more precise method and contain much more fossils, so they should be removed or treated separately
+  - BIAS 2: Some occurrences show a highly uncertain dating (> 10My), they are excluded when combining the uncertainty intervals into a unique stratigraphic range per taxon
+  - BIAS 3: Some taxa and geological periods seems to have been oversampled, due to variation in species abundance, geological factors or human unequal sampling, 
+    1. It seems possible to adequately reduce the abundance bias by subsampling the richest taxa, based on a metrics of occurrence density (number of occurrences / stratigraphic range). Using combined stratigraphic ranges, instead of age uncertainty intervals, appears to be more robust
+    2. An alternative sampling method consisting in aggregating the occurrences of the same taxa found in the same geological formation (or the same geoplate + early stratigraphic interval if the geological formation is not indicated) seems to work equally well, and is more paleontologically relevant
     
     
