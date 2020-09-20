@@ -5,6 +5,7 @@ output:
     fig_height: 5.5
     fig_width: 10
     toc: yes
+    toc_depth: 4
   html_notebook:
     code_folding: hide
   html_document:
