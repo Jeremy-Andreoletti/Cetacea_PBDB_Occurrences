@@ -2,12 +2,14 @@ From Jérémy Andréoletti, Antoine Zwaans, Rachel C M Warnock, Gabriel Aguirre-
 
 Mos data can be found in the [Supplementary Materials](https://doi.org/10.5061/dryad.p8cz8w9rq).
 
-# Cetacea PBDB Occurrences
+## Cetacea PBDB Occurrences
 Exploration of the cetacean fossil occurrences dataset from the Paleobiology Database
 
 Occurrences have been downloaded on May 11, 2020 with the following [data URL](http://paleobiodb.org/data1.2/occs/list.csv?datainfo&rowcount&base_name=Cetacea&show=full,classext,lith).
 
-# Cetacea tree from OBDP analysis
+## Cetacea tree from OBDP analysis
 WellMixedTrees = only the MCMC chains with adequate node age mixing are kept
+
 MAP = Maximum A Posteriori
+
 MCC = Maximum Clade Credibility
